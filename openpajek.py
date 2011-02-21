@@ -1,8 +1,20 @@
 import Tkinter
 import igraph
 import random
+
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.font_manager
+import matplotlib.backends.backend_tkagg
+import matplotlib.figure
+import matplotlib.pyplot
+
+import dialog
  
 root = Tkinter.Tk()
+ccs = []
+apls = []
+steps = 0
 
 def transcoords(x,y,box):
     x = (x-box[0])/(box[2]-box[0])
@@ -25,24 +37,60 @@ def updateview():
 
 def erdos():
     global g,layout
-    g=igraph.Graph.Erdos_Renyi(100, 0.05)
+
+    clearPlot()
+    pars=dialog.show(root,['nodes','density'],['100','0.10'])
+
+    g=igraph.Graph.Erdos_Renyi(int(pars[0]), float(pars[1]))
     layout = g.layout("fr", maxiter=100)
+
     updateview()
+    measure()
+    replot()
 
 def lattice():
     global g,layout
-    g=igraph.Graph.Lattice(dim=[3,3,3])
+
+    clearPlot()
+
+    dim=dialog.show(root,['dimensions'],['3,3,3,3'])[0]
+    dimi=[]
+    for d in dim.split(','):
+        dimi.append(int(d))
+
+    g=igraph.Graph.Lattice(dim=dimi)
     layout = g.layout("fr", maxiter=100)
+
     updateview()
+    measure()
+    replot()
 
 def barabasi():
     global g,layout
-    g=igraph.Graph.Barabasi(27, m=81)
+
+    clearPlot()
+
+    pars=dialog.show(root,['number of vertices','number of outgoing edges generated for each vertex'],['100','5'])
+
+    g=igraph.Graph.Barabasi(int(pars[0]), m=int(pars[1]))
     layout = g.layout("fr", maxiter=100)
     updateview()
 
+def clearPlot():
+    global ccs,apls,steps
+    ccs=[]
+    apls=[]
+    steps=0
+
+def measure():
+    global ccs,apls,steps
+    ccs.append(g.transitivity_undirected())
+    apls.append(g.average_path_length())
+    steps=steps+1
+
+
 def shortcut():
-    global g
+    global g,ccs,apls,steps
     e=random.randint(0, g.ecount()-1)
     g.delete_edges(e)
     i = random.randint(0, g.vcount()-1)
@@ -51,6 +99,9 @@ def shortcut():
         i = random.randint(0, g.vcount()-1)
         j = random.randint(0, g.vcount()-1)
     g.add_edges((i, j))
+
+    measure()
+    replot()
     updateview()
 
 def newlayout(s):
@@ -99,12 +150,12 @@ filemenu.add_command(label="Lattice", command=lattice)
 filemenu.add_command(label="Barabasi", command=barabasi)
 #filemenu.add_command(label="SW")
 filemenu.add_separator()
-filemenu.add_command(label="Exit", command=root.quit)
-menubar.add_cascade(label="Random", menu=filemenu)
+filemenu.add_command(label="Exit (q)", command=root.quit)
+menubar.add_cascade(label="Generate Network", menu=filemenu)
 
 # create more pulldown menus
 editmenu = Tkinter.Menu(menubar, tearoff=0)
-editmenu.add_command(label="Shortcut (random link)", command=shortcut)
+editmenu.add_command(label="Shortcut (random link) (n)", command=shortcut)
 menubar.add_cascade(label="Simulate", menu=editmenu)
 
 layoutmenu = Tkinter.Menu(menubar, tearoff=0)
@@ -136,15 +187,42 @@ root.config(menu=menubar)
 def drawcircle(canv,x,y,rad):
     canv.create_oval(x-rad,y-rad,x+rad,y+rad,width=0,fill='blue')
  
-canvas = Tkinter.Canvas(width=800, height=600, bg='white')  
-canvas.pack(expand=Tkinter.YES, fill=Tkinter.BOTH) 
+canvas = Tkinter.Canvas(width=800, height=600, bg='white')
+#canvas.pack(expand=Tkinter.YES, fill=Tkinter.BOTH)
+canvas.grid(row=0, column=0, rowspan=1)
 #canvas.create_text(50,10, text="tk test")
- 
+
+
+f = matplotlib.pyplot.figure(1)
+
+def replot():
+    global canvas2
+    f = matplotlib.pyplot.figure(1)
+    f.clf()
+    aplx = matplotlib.pyplot.subplot(2,1,1)
+    matplotlib.pyplot.ylabel('apl')
+    aplx.plot(range(0,steps),apls)
+
+    ccx = matplotlib.pyplot.subplot(2,1,2)
+    matplotlib.pyplot.ylabel('cc')
+    matplotlib.pyplot.xlabel('step')
+    ccx.plot(range(0,steps),ccs)
+    canvas2.show()
+
+canvas2 = matplotlib.backends.backend_tkagg.FigureCanvasTkAgg(f, master=root)
+canvas2.get_tk_widget().grid(row=0, column=1)
+
+#lattice()
+#measure()
+#replot()
+
 def key(event):
     if event.char == event.keysym:
         msg = 'Normal Key %r' % event.char
         if event.char == 'n':
             shortcut()
+        if event.char == 'q':
+            exit(0)
     elif len(event.char) == 1:
         msg = 'Punctuation Key %r (%r)' % (event.keysym, event.char)
     else:
@@ -152,5 +230,4 @@ def key(event):
     #print msg
  
 root.bind_all('<Key>', key)
-
 root.mainloop()
