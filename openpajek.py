@@ -15,6 +15,7 @@ root = Tkinter.Tk()
 ccs = []
 apls = []
 steps = 0
+mlog=0
 
 def transcoords(x,y,box):
     x = (x-box[0])/(box[2]-box[0])
@@ -35,11 +36,59 @@ def updateview():
         x2,y2=transcoords(layout[e[1]][0],layout[e[1]][1],box)
         canvas.create_line(x1,y1,x2,y2)
 
+def getDegreeDist(g):
+    maxd = 0
+    for i in range(0,g.vcount()):
+        maxd = max(g.degree(i),maxd)
+    dist=[0]*(maxd+1)
+    for i in range(0,g.vcount()):
+        dist[g.degree(i)] = dist[g.degree(i)]+1
+    return dist
+
+def p_log():
+    global mlog
+    mlog=1
+    replot()
+
+def p_linear():
+    global mlog
+    mlog=0
+    replot()
+
+def replot():
+    global canvas2,mlog
+    f = matplotlib.pyplot.figure(1)
+    f.clf()
+    aplx = matplotlib.pyplot.subplot(3,1,1)
+    matplotlib.pyplot.ylabel('apl')
+    matplotlib.pyplot.xlabel('step')
+    if len(apls)>1 and mlog == 1:
+        aplx.set_xscale('log')
+    aplx.plot(range(0,steps),apls)
+
+    ccx = matplotlib.pyplot.subplot(3,1,2)
+    matplotlib.pyplot.ylabel('cc')
+    matplotlib.pyplot.xlabel('step')
+    if len(apls)>1 and mlog == 1:
+        ccx.set_xscale('log')
+    ccx.plot(range(0,steps),ccs)
+
+    dist = getDegreeDist(g)
+    deg = matplotlib.pyplot.subplot(3,1,3)
+    matplotlib.pyplot.ylabel('count')
+    matplotlib.pyplot.xlabel('degree')
+    if mlog == 1:
+        deg.set_xscale('log')
+        deg.set_yscale('log')
+    deg.plot(range(0,len(dist)),dist)
+
+    canvas2.show()
+
 def erdos():
     global g,layout
 
     clearPlot()
-    pars=dialog.show(root,['nodes','density'],['100','0.10'])
+    pars=dialog.show(root,['nodes','density'],['100','0.05'])
 
     g=igraph.Graph.Erdos_Renyi(int(pars[0]), float(pars[1]))
     layout = g.layout("fr", maxiter=100)
@@ -53,7 +102,7 @@ def lattice():
 
     clearPlot()
 
-    dim=dialog.show(root,['dimensions'],['3,3,3,3'])[0]
+    dim=dialog.show(root,['dimensions'],['5,5,5'])[0]
     dimi=[]
     for d in dim.split(','):
         dimi.append(int(d))
@@ -113,6 +162,44 @@ def shortcut():
         i = random.randint(0, g.vcount()-1)
         j = random.randint(0, g.vcount()-1)
     g.add_edges((i, j))
+    g.add_edges((j, i))
+
+    measure()
+    replot()
+    updateview()
+
+def neighbor():
+    global g,ccs,apls,steps
+    while True:
+        e=g.get_edgelist()[random.randint(0, g.ecount()-1)]
+        s=[]
+        for i in g.neighbors(e[0]):
+            for j in g.neighbors(i):
+                if j != e[0] and j not in g.neighbors(e[0]):
+                    s.append(j)
+        if len(s) > 0:
+            break
+    g.delete_edges(e)
+    r = s[random.randint(0, len(s))]
+    g.add_edges((e[0], r))
+    g.add_edges((r,e[0]))
+
+    measure()
+    replot()
+    updateview()
+
+def preferential():
+    global g,ccs,apls,steps
+    e1=g.get_edgelist()[random.randint(0, g.ecount()-1)]
+    g.delete_edges(e1)
+
+    while True:
+        e2=g.get_edgelist()[random.randint(0, g.ecount()-1)]
+        n=random.randint(0, g.vcount()-1)
+        if e2[0] != n and not g.are_connected(e2[0], n):
+            break
+    g.add_edges((e2[0], n))
+    g.add_edges((n,e2[0]))
 
     measure()
     replot()
@@ -172,7 +259,9 @@ menubar.add_cascade(label="Generate Network", menu=filemenu)
 
 # create more pulldown menus
 editmenu = Tkinter.Menu(menubar, tearoff=0)
-editmenu.add_command(label="Shortcut (random link) (n)", command=shortcut)
+editmenu.add_command(label="Random (r)", command=shortcut)
+editmenu.add_command(label="Neighbor (n)", command=neighbor)
+editmenu.add_command(label="Preferential attachment (p)", command=preferential)
 menubar.add_cascade(label="Simulate", menu=editmenu)
 
 layoutmenu = Tkinter.Menu(menubar, tearoff=0)
@@ -195,7 +284,12 @@ layoutmenu.add_command(label="by eigenvector", command=l_drl)
 layoutmenu.add_command(label="by betweenness", command=l_circular)
 layoutmenu.add_command(label="by closeness", command=l_circular)
 layoutmenu.add_command(label="by clustering coefficient", command=l_circular)
-menubar.add_cascade(label="Color", menu=layoutmenu)
+#menubar.add_cascade(label="Color", menu=layoutmenu)
+
+layoutmenu = Tkinter.Menu(menubar, tearoff=0)
+layoutmenu.add_command(label="log", command=p_log)
+layoutmenu.add_command(label="linear", command=p_linear)
+menubar.add_cascade(label="plot", menu=layoutmenu)
 
 # display the menu
 root.config(menu=menubar)
@@ -212,23 +306,8 @@ canvas.grid(row=0, column=0, rowspan=1)
 
 f = matplotlib.pyplot.figure(1)
 
-def replot():
-    global canvas2
-    f = matplotlib.pyplot.figure(1)
-    f.clf()
-    aplx = matplotlib.pyplot.subplot(2,1,1)
-    matplotlib.pyplot.ylabel('apl')
-    if len(apls)>1:
-        aplx.set_xscale('log')
-    aplx.plot(range(0,steps),apls)
 
-    ccx = matplotlib.pyplot.subplot(2,1,2)
-    matplotlib.pyplot.ylabel('cc')
-    matplotlib.pyplot.xlabel('step')
-    if len(apls)>1:
-        ccx.set_xscale('log')
-    ccx.plot(range(0,steps),ccs)
-    canvas2.show()
+
 
 canvas2 = matplotlib.backends.backend_tkagg.FigureCanvasTkAgg(f, master=root)
 canvas2.get_tk_widget().grid(row=0, column=1)
@@ -240,8 +319,12 @@ canvas2.get_tk_widget().grid(row=0, column=1)
 def key(event):
     if event.char == event.keysym:
         msg = 'Normal Key %r' % event.char
-        if event.char == 'n':
+        if event.char == 'r':
             shortcut()
+        if event.char == 'n':
+            neighbor()
+        if event.char == 'p':
+            preferential()
         if event.char == 'q':
             exit(0)
     elif len(event.char) == 1:
