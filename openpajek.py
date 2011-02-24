@@ -76,6 +76,20 @@ def barabasi():
     layout = g.layout("fr", maxiter=100)
     updateview()
 
+def watts():
+    global g,layout
+    clearPlot()
+
+    n=int(dialog.show(root,['number of vertices'],['100'])[0])
+
+    g = igraph.Graph(n=n, directed=True)
+    for i in range(0, n):
+        g.add_edges((i, (i+1)%n))
+        g.add_edges((i, (i+2)%n))
+
+    layout = g.layout("circular", maxiter=100)
+    updateview()
+
 def clearPlot():
     global ccs,apls,steps
     ccs=[]
@@ -144,13 +158,16 @@ def l_star():
 
 # create a toplevel menu
 menubar = Tkinter.Menu(root)
+
+filemenu = Tkinter.Menu(menubar, tearoff=0)
+filemenu.add_command(label="Exit (q)", command=root.quit)
+menubar.add_cascade(label="file", menu=filemenu)
+
 filemenu = Tkinter.Menu(menubar, tearoff=0)
 filemenu.add_command(label="Erdos-Renyi", command=erdos)
 filemenu.add_command(label="Lattice", command=lattice)
 filemenu.add_command(label="Barabasi", command=barabasi)
-#filemenu.add_command(label="SW")
-filemenu.add_separator()
-filemenu.add_command(label="Exit (q)", command=root.quit)
+filemenu.add_command(label="Watts", command=watts)
 menubar.add_cascade(label="Generate Network", menu=filemenu)
 
 # create more pulldown menus
@@ -201,11 +218,15 @@ def replot():
     f.clf()
     aplx = matplotlib.pyplot.subplot(2,1,1)
     matplotlib.pyplot.ylabel('apl')
+    if len(apls)>1:
+        aplx.set_xscale('log')
     aplx.plot(range(0,steps),apls)
 
     ccx = matplotlib.pyplot.subplot(2,1,2)
     matplotlib.pyplot.ylabel('cc')
     matplotlib.pyplot.xlabel('step')
+    if len(apls)>1:
+        ccx.set_xscale('log')
     ccx.plot(range(0,steps),ccs)
     canvas2.show()
 
